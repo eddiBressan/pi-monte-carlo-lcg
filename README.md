@@ -1,39 +1,50 @@
-# Stima di π tramite Metodo Monte Carlo e LCG
+# Progetto: Stima di π tramite Metodo Monte Carlo e LCG
 
-Questo progetto implementa un simulatore ad alte prestazioni in Python puro per la stima del valore di pi greco ($\pi$), sviluppato per la competizione del Laboratorio di Calcolo.
+Questo repository contiene un'implementazione ad alte prestazioni in **Python puro** per la stima del valore di pi greco ($\pi$), sviluppata per la competizione del Laboratorio di Calcolo.
 
-## 🚀 Obiettivo
-L'obiettivo è stimare $\pi$ utilizzando $N=100.000$ punti generati casualmente all'interno di un quadrato unitario, calcolando il rapporto di quelli che cadono all'interno del cerchio inscritto.
+## 🚀 Obiettivo del Task
+L'obiettivo è stimare il valore di $\pi$ analiticamente tramite una simulazione statistica: generare $N=100.000$ punti casuali in un quadrato unitario e determinare la frazione di essi che ricade all'interno del cerchio inscritto.
 
 ## 🛠️ Architettura Tecnica
 
 ### 1. Generatore Pseudo-Random (LCG)
-Invece di utilizzare librerie esterne, abbiamo implementato un **Generatore Lineare Congruenziale** basato sui parametri di *Numerical Recipes* (Knuth):
-- **Moltiplicatore ($a$):** 1.664.525
-- **Incremento ($c$):** 1.013.904.223
+Poiché l'uso di moduli esterni (come `random` o `numpy`) è vietato, è stato implementato un **Generatore Lineare Congruenziale** (Linear Congruential Generator). 
+La formula ricorsiva utilizzata è:
+$$x_{n+1} = (a \cdot x_n + c) \mod m$$
+
+Sono stati adottati i parametri di *Numerical Recipes* (Knuth), che garantiscono un periodo pieno di $2^{32}$:
+- **Moltiplicatore ($a$):** $1.664.525$
+- **Incremento ($c$):** $1.013.904.223$
 - **Modulo ($m$):** $2^{32}$
 
-Per evitare correlazioni spaziali tra le coordinate $x$ e $y$ (che inficerebbero la stima), il sistema utilizza due istanze del generatore con **seed distinti**:
-- `seed_x = 12345`
-- `seed_y = 67890`
+### 2. Metodo Monte Carlo
+La stima si basa sul rapporto tra l'area di un cerchio e quella del quadrato in cui è inscritto. In un sistema con raggio $r=1$ limitato al primo quadrante:
+- Area Quadrato = $1 \times 1 = 1$
+- Area Quarto di Cerchio = $\frac{\pi \cdot r^2}{4} = \frac{\pi}{4}$
 
-### 2. Algoritmo Monte Carlo
-La stima si basa sul principio geometrico per cui il rapporto tra l'area di un cerchio e quella del quadrato in cui è inscritto è $\frac{\pi}{4}$. 
-Il codice verifica per ogni punto $(x, y)$ la condizione:
+La condizione di appartenenza al cerchio per ogni punto $(x, y)$ è:
 $$x^2 + y^2 \leq 1$$
 
 ## ⚡ Strategie di Ottimizzazione (Performance)
-Il codice è stato ottimizzato per minimizzare l'overhead dell'interprete Python, ottenendo un tempo di esecuzione di circa **23.7 ms**:
+Il codice è stato ottimizzato per minimizzare l'overhead dell'interprete Python e massimizzare il throughput dei dati, ottenendo un tempo di esecuzione di circa **23.7 ms**:
 
-*   **Caching dei Metodi:** Abbiamo assegnato il metodo `.append` della lista a una variabile locale (`appendi`). Questo evita che Python debba cercare l'attributo nell'oggetto lista a ogni iterazione del ciclo (operazione costosa in cicli da $10^{5}$ iterazioni).
-*   **Efficienza Aritmetica:** È stata utilizzata la moltiplicazione diretta `x * x` invece dell'operatore di potenza `x ** 2`, riducendo i cicli di clock necessari a livello di CPU.
-*   **Branchless Programming:** Per il conteggio dei punti interni, abbiamo evitato l'uso di costrutti `if/else`, sfruttando la proprietà di Python per cui i booleani sono trattati come interi (`True = 1`). Questo approccio rende il bytecode più lineare e performante.
-*   **Gestione del Jitter:** Le scelte di ottimizzazione sono state calibrate per bilanciare la velocità pura con la stabilità del sistema, garantendo risultati consistenti nonostante il jitter del dispositivo.
+*   **Method Caching:** L'istruzione `appendi = numeri.append` memorizza il riferimento al metodo `.append()` in una variabile locale. Questo elimina la necessità per l'interprete di eseguire una ricerca dell'attributo nell'oggetto lista a ogni iterazione, risparmiando cicli di clock preziosi.
+*   **Branchless Programming:** Invece di utilizzare un costrutto `if`, il contatore viene aggiornato tramite `punti_dentro += (condizione)`. In Python, i booleani sono sottoclassi di `int` (`True = 1`), e questo approccio riduce i salti condizionali nel bytecode, rendendo l'esecuzione più lineare.
+*   **Efficienza Aritmetica:** È stata utilizzata la moltiplicazione diretta `x * x` invece dell'operatore di potenza `x ** 2`. L'esponenziazione è una funzione generica più pesante, mentre la moltiplicazione è un'operazione atomica gestita direttamente dalla ALU della CPU.
+*   **Ottimizzazione della Distanza:** È stata evitata la funzione `math.sqrt()` confrontando direttamente la somma dei quadrati con $1$. Questo risparmia il calcolo della radice quadrata, operazione notoriamente onerosa.
 
-## 📈 Requisiti e Utilizzo
-- **Linguaggio:** Python 3.x
-- **Librerie:** Nessuna (Standard Library)
-- **Esecuzione:** Il codice include il comando `%timeit` per il benchmarking in ambiente Jupyter/IPython.
-```python
-# Per eseguire la stima:
-risultato = stima_pi(100_000)
+## ❓ FAQ Tecniche
+
+**D: Perché usare due seed differenti (12345 e 67890)?**
+**R:** Per garantire l'indipendenza statistica tra le coordinate $x$ e $y$. Se usassimo lo stesso seed, otterremmo punti distribuiti solo sulla diagonale $x=y$, invalidando la natura bidimensionale della simulazione Monte Carlo.
+
+**D: Perché dividere per $m$ alla fine del ciclo LCG?**
+**R:** Il generatore restituisce numeri interi tra $0$ e $m-1$. La divisione normalizza i valori nel range $[0, 1)$, permettendo la corretta mappatura spaziale nel quadrato unitario.
+
+**D: Come viene gestito il jitter del dispositivo?**
+**R:** Il codice è scritto per essere il più compatto possibile a livello di istruzioni Python. Le ottimizzazioni adottate riducono il numero di operazioni che l'interprete deve gestire, minimizzando la varianza del tempo di esecuzione causata dal rumore di fondo del sistema operativo.
+
+## 📈 Requisiti e Benchmark
+- **Ambiente:** Python 3.x (IPython/Jupyter per `%timeit`)
+- **Performance Media:** ~23.7 ms per $100.000$ punti.
+- **Precisione:** Coerente con la convergenza $1/\sqrt{N}$ tipica del metodo Monte Carlo.
